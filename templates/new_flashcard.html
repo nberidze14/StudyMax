@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set is_edit = is_edit|default(false) %}
+<section class="box small-box">
+    <div class="box-title">
+        <div>
+            <h2>{{ deck.name }}</h2>
+        </div>
+    </div>
+
+    <form method="post" class="form-fields" autocomplete="off">
+        <label for="question">Question</label>
+        <input id="question" name="question" value="{{ card.question if is_edit else '' }}" placeholder="Front side" autocomplete="off" required>
+
+        <label for="answer">Answer</label>
+        <textarea id="answer" name="answer" placeholder="Back side" autocomplete="off" required>{{ card.answer if is_edit else '' }}</textarea>
+
+        <div class="actions">
+            <button type="submit">{{ 'Update flashcard' if is_edit else 'Add flashcard' }}</button>
+            <a class="button-link secondary" href="{{ url_for('flashcard_deck', deck_id=deck.id) }}">Back to deck</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

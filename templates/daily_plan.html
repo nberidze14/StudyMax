@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box dailyplan-top">
+    <div class="box-title">
+        <div>
+            <h2>Today’s Plan</h2>
+        </div>
+    </div>
+    <div class="split">
+        <article class="box blue-card">
+            <h3>Due Flashcards</h3>
+            {% if plan.due_flashcards %}
+                <ul class="simple-list">
+                    {% for card in plan.due_flashcards %}
+                        <li>{{ card.question }} <span>{{ card.deck_name }}</span></li>
+                    {% endfor %}
+                </ul>
+                <a class="button-link" href="{{ url_for('review_flashcards') }}">Start review</a>
+            {% else %}
+                <p>No cards due.</p>
+            {% endif %}
+        </article>
+
+        <article class="box warm-card">
+            <h3>To-dos Due Today</h3>
+            {% if plan.todays_tasks %}
+                <ul class="simple-list">
+                    {% for task in plan.todays_tasks %}
+                        <li class="daily-task-item {{ 'done' if task.is_done else '' }}">
+                            <form method="post" action="{{ url_for('toggle_todo', todo_id=task.id) }}">
+                                <input type="hidden" name="next" value="daily_plan">
+                                <button type="submit" class="todo-check" aria-label="{{ 'Mark incomplete' if task.is_done else 'Mark complete' }}"></button>
+                            </form>
+                            <span>{{ task.title }}</span>
+                            <small>{{ task.due_date }}</small>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No tasks due today.</p>
+            {% endif %}
+        </article>
+    </div>
+</section>
+
+<section class="split daily-secondary-row">
+    <section class="box blue-card">
+        <h3>Carryover Tasks</h3>
+        {% if plan.carryover_tasks %}
+            <ul class="simple-list">
+                {% for task in plan.carryover_tasks %}
+                    <li class="daily-task-item">
+                        <form method="post" action="{{ url_for('toggle_todo', todo_id=task.id) }}">
+                            <input type="hidden" name="next" value="daily_plan">
+                            <button type="submit" class="todo-check" aria-label="Mark complete"></button>
+                        </form>
+                        <span>{{ task.title }}</span>
+                        <small>{{ task.due_date }}</small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No carryover tasks.</p>
+        {% endif %}
+    </section>
+
+    <section class="box light-card">
+        <h3>Upcoming Exams</h3>
+        {% if exam_countdowns %}
+            <ul class="simple-list">
+                {% for exam in exam_countdowns %}
+                    <li>{{ exam.title }} <span>{{ exam.days_left }} days left</span></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No upcoming exams.</p>
+        {% endif %}
+    </section>
+</section>
+
+<section class="box">
+    <div class="box-title">
+        <div>
+            <h3>Study activity</h3>
+        </div>
+        <div class="calendar-nav">
+            <a href="{{ url_for('daily_plan', year=activity_calendar.previous_year, month=activity_calendar.previous_month) }}"><strong>&lt;</strong></a>
+            <span>{{ activity_calendar.label }}</span>
+            <a href="{{ url_for('daily_plan', year=activity_calendar.next_year, month=activity_calendar.next_month) }}"><strong>&gt;</strong></a>
+        </div>
+    </div>
+    <div class="activity-calendar activity-calendar-wide">
+        {% for day in activity_calendar.weekdays %}
+            <span class="calendar-weekday">{{ day }}</span>
+        {% endfor %}
+        {% for cell in activity_calendar.cells %}
+            {% if cell.empty %}
+                <span class="calendar-day empty"></span>
+            {% else %}
+                <div class="calendar-day level-{{ cell.level }} {{ 'today' if cell.is_today else '' }}" title="{{ cell.day }}: {{ cell.count }} cards reviewed">
+                    <strong>{{ cell.number }}</strong>
+                    {% if cell.count %}
+                        <small>{{ cell.count }}</small>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set selected_deck_ids = selected_exam.deck_ids if selected_exam else [] %}
+{% set selected_project_ids = selected_exam.project_ids if selected_exam else [] %}
+
+<section class="exam-workspace">
+    <aside class="exam-sidebar">
+        <a class="button-link exam-new-button" href="{{ url_for('exams') }}">Add New Exam</a>
+
+        <div class="exam-list">
+            <p class="small-title">Upcoming Exams</p>
+            {% if raw_exams %}
+                {% for exam in exams %}
+                    <a class="exam-list-item {{ 'active' if selected_exam and selected_exam.id == exam.id else '' }}" href="{{ url_for('exams', exam_id=exam.id) }}">
+                        <strong>{{ exam.title }}</strong>
+                        <span>{{ exam.days_left }} days left</span>
+                        <small>{{ exam.exam_date }}</small>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <p class="hint-text">No exams yet.</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="exam-editor box">
+        <div class="box-title">
+            <div>
+                <h2>{{ 'Edit exam' if selected_exam else 'Add exam' }}</h2>
+            </div>
+        </div>
+
+        <form method="post" class="form-fields">
+            {% if selected_exam %}
+                <input type="hidden" name="exam_id" value="{{ selected_exam.id }}">
+            {% endif %}
+
+            <label for="title">Exam title</label>
+            <input id="title" name="title" value="{{ selected_exam.title if selected_exam else '' }}" placeholder="Title" required>
+
+            <label for="exam_date">Exam date</label>
+            <input id="exam_date" name="exam_date" type="date" value="{{ selected_exam.exam_date if selected_exam else '' }}" required>
+
+            <div class="exam-requirement-grid">
+                <fieldset class="check-box">
+                    <legend>Flashcard decks to study</legend>
+                    {% if decks %}
+                        {% for deck in decks %}
+                            <label class="check-row">
+                                <input type="checkbox" name="deck_ids" value="{{ deck.id }}" {{ 'checked' if deck.id in selected_deck_ids else '' }}>
+                                <span>{{ deck.name }} <small>{{ deck.card_count }} cards</small></span>
+                            </label>
+                        {% endfor %}
+                    {% else %}
+                        <p class="hint-text">No decks yet.</p>
+                    {% endif %}
+                </fieldset>
+
+                <fieldset class="check-box">
+                    <legend>To-do projects</legend>
+                    {% if todo_projects %}
+                        {% for project in todo_projects %}
+                            <label class="check-row">
+                                <input type="checkbox" name="project_ids" value="{{ project.id }}" {{ 'checked' if project.id in selected_project_ids else '' }}>
+                                <span>{{ project.name }} <small>{{ project.task_count }} open tasks in project</small></span>
+                            </label>
+                        {% endfor %}
+                    {% else %}
+                        <p class="hint-text">No projects yet.</p>
+                    {% endif %}
+                </fieldset>
+            </div>
+
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" placeholder="Topics to review before the exam">{{ selected_exam.notes if selected_exam and selected_exam.notes else '' }}</textarea>
+
+            <div class="actions">
+                {% if selected_exam %}
+                    <a class="button-link exam-study-button" href="{{ url_for('study_exam', exam_id=selected_exam.id) }}">Study for this exam</a>
+                    <button
+                        type="submit"
+                        form="plan-exam-prep-form"
+                        class="button-link prep-button"
+                        data-confirm="This will move exam tasks and card review dates before the exam."
+                    >
+                        Plan exam prep
+                    </button>
+                {% endif %}
+                <button type="submit" class="{{ 'exam-update-button' if selected_exam else '' }}">{{ 'Update exam' if selected_exam else 'Save exam' }}</button>
+            </div>
+        </form>
+
+        {% if selected_exam %}
+            <form id="plan-exam-prep-form" method="post" action="{{ url_for('plan_exam_prep', exam_id=selected_exam.id) }}"></form>
+            <form method="post" action="{{ url_for('delete_exam', exam_id=selected_exam.id) }}" class="exam-delete-form">
+                <button type="submit" class="danger" data-confirm="Delete this exam?">Delete exam</button>
+            </form>
+        {% endif %}
+    </main>
+</section>
+{% endblock %}

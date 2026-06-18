@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyMax</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        (function () {
+            if (window.studymaxPomodoro) {
+                return;
+            }
+
+            const storageKey = "studymaxPomodoroState";
+
+            function loadTimerState() {
+                try {
+                    return JSON.parse(localStorage.getItem(storageKey));
+                } catch (_error) {
+                    return null;
+                }
+            }
+
+            function saveTimerState(state) {
+                localStorage.setItem(storageKey, JSON.stringify(state));
+                window.dispatchEvent(new CustomEvent("pomodoro-state-change", { detail: state }));
+            }
+
+            function playPomodoroAlarm() {
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) {
+                        return;
+                    }
+                    const context = new AudioContext();
+                    [0, 0.35, 0.7].forEach((offset) => {
+                        const oscillator = context.createOscillator();
+                        const gain = context.createGain();
+                        const startAt = context.currentTime + offset;
+                        oscillator.type = "square";
+                        oscillator.frequency.setValueAtTime(880, startAt);
+                        gain.gain.setValueAtTime(0.001, startAt);
+                        gain.gain.exponentialRampToValueAtTime(0.34, startAt + 0.03);
+                        gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.22);
+                        oscillator.connect(gain);
+                        gain.connect(context.destination);
+                        oscillator.start(startAt);
+                        oscillator.stop(startAt + 0.25);
+                    });
+                } catch (_error) {
+                    localStorage.setItem("studymaxPomodoroAlarmPending", "1");
+                }
+            }
+
+            function nextPomodoroState(state) {
+                const nextState = { ...state };
+                if (state.mode === "focus") {
+                    const completed = Number(state.completedFocusSessions || 0) + 1;
+                    const sessionsUntilLong = Number(state.sessionsUntilLongBreak || 4);
+                    if (completed >= sessionsUntilLong) {
+                        nextState.completedFocusSessions = 0;
+                        nextState.mode = "long";
+                    } else {
+                        nextState.completedFocusSessions = completed;
+                        nextState.mode = "short";
+                    }
+                } else {
+                    nextState.mode = "focus";
+                }
+                nextState.remainingSeconds = Number(nextState.modeSeconds[nextState.mode] || 0);
+                nextState.running = true;
+                nextState.endAt = Date.now() + nextState.remainingSeconds * 1000;
+                nextState.finishedAt = Date.now();
+                return nextState;
+            }
+
+            function checkPomodoroTimer() {
+                const state = loadTimerState();
+                if (!state || !state.running || !state.endAt) {
+                    return;
+                }
+                if (Date.now() < Number(state.endAt)) {
+                    return;
+                }
+                const nextState = nextPomodoroState(state);
+                saveTimerState(nextState);
+                playPomodoroAlarm();
+            }
+
+            window.studymaxPomodoro = {
+                load: loadTimerState,
+                save: saveTimerState,
+                check: checkPomodoroTimer,
+                playAlarm: playPomodoroAlarm,
+                storageKey,
+            };
+
+            window.addEventListener("click", () => {
+                if (localStorage.getItem("studymaxPomodoroAlarmPending") === "1") {
+                    localStorage.removeItem("studymaxPomodoroAlarmPending");
+                    playPomodoroAlarm();
+                }
+            }, { once: true });
+
+            checkPomodoroTimer();
+            window.setInterval(checkPomodoroTimer, 1000);
+        })();
+    </script>
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="{{ url_for('index') }}" aria-label="StudyMax home">
+            <span>StudyMax</span>
+        </a>
+        <nav class="main-tabs" aria-label="Main navigation">
+            <a class="{{ 'active' if request.endpoint in ['index', 'daily_plan'] else '' }}" href="{{ url_for('index') }}">Dashboard</a>
+            <a class="{{ 'active' if request.endpoint in ['flashcards', 'review_flashcards'] else '' }}" href="{{ url_for('flashcards') }}">Flashcards</a>
+            <a class="{{ 'active' if request.endpoint == 'notes' else '' }}" href="{{ url_for('notes') }}">Notes</a>
+            <a class="{{ 'active' if request.endpoint == 'todos' else '' }}" href="{{ url_for('todos') }}">To-Do</a>
+            <a class="{{ 'active' if request.endpoint == 'pomodoro' else '' }}" href="{{ url_for('pomodoro') }}">Pomodoro</a>
+        </nav>
+        <a class="header-action {{ 'active' if request.endpoint == 'exams' else '' }}" href="{{ url_for('exams') }}">Exams</a>
+    </header>
+
+    <main class="page">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="messages">
+                    {% for category, message in messages %}
+                        <div class="message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+    <div class="confirm-modal" id="confirm-modal" hidden>
+        <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+            <h3 id="confirm-modal-title">Are you sure?</h3>
+            <p id="confirm-modal-message">This action needs confirmation.</p>
+            <div class="actions confirm-actions">
+                <button type="button" class="secondary-button" id="confirm-cancel">Cancel</button>
+                <button type="button" id="confirm-accept">Continue</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let pendingConfirmTarget = null;
+
+        document.addEventListener("click", (event) => {
+            const trigger = event.target.closest("[data-confirm]");
+            if (!trigger) {
+                return;
+            }
+            if (trigger.dataset.confirmed === "true") {
+                trigger.dataset.confirmed = "";
+                return;
+            }
+
+            event.preventDefault();
+            pendingConfirmTarget = trigger;
+            document.getElementById("confirm-modal-message").textContent = trigger.dataset.confirm || "Are you sure?";
+            document.getElementById("confirm-modal").hidden = false;
+        });
+
+        document.getElementById("confirm-cancel").addEventListener("click", () => {
+            pendingConfirmTarget = null;
+            document.getElementById("confirm-modal").hidden = true;
+        });
+
+        document.getElementById("confirm-accept").addEventListener("click", () => {
+            const target = pendingConfirmTarget;
+            pendingConfirmTarget = null;
+            document.getElementById("confirm-modal").hidden = true;
+            if (!target) {
+                return;
+            }
+            target.dataset.confirmed = "true";
+            if (target.form) {
+                target.form.requestSubmit(target);
+            } else {
+                target.click();
+            }
+        });
+    </script>
+</body>
+</html>

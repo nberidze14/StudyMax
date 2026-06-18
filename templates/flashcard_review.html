@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box review-box review-shell">
+    <div class="box-title">
+        <div>
+            <h2>
+                {% if selected_exam %}
+                    {{ selected_exam.title }}
+                {% elif selected_deck %}
+                    {{ selected_deck.name }}
+                {% elif card %}
+                    {{ card.deck_name }}
+                {% else %}
+                    All decks
+                {% endif %}
+            </h2>
+        </div>
+        {% if card %}
+            <div class="review-header-actions">
+                {% if shuffle_cards %}
+                    <a class="button-link secondary" href="{{ normal_review_url }}">Normal order</a>
+                {% else %}
+                    <a class="button-link secondary" href="{{ shuffled_review_url }}">Shuffle cards</a>
+                {% endif %}
+                <span class="review-count-badge">{{ remaining }} cards left</span>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if not selected_exam and not selected_deck %}
+        <form method="get" class="form-fields filter-form">
+            <select id="review_deck_filter" name="deck_id" onchange="this.form.submit()">
+                <option value="">All decks</option>
+                {% for deck in decks %}
+                    <option value="{{ deck.id }}" {{ 'selected' if selected_deck_id == deck.id else '' }}>
+                        {{ deck.name }} ({{ deck.due_count or 0 }} due)
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+    {% endif %}
+
+    {% if card %}
+        <div class="flip-scene">
+            <button type="button" class="flip-card" id="flip-card" aria-label="Flip flashcard">
+                <span class="flip-card-face flip-card-front">
+                    <span class="flashcard-label">Question</span>
+                    <strong>{{ card.question }}</strong>
+                    <span class="flip-hint">Click to flip</span>
+                </span>
+                <span class="flip-card-face flip-card-back">
+                    <span class="flashcard-label">Answer</span>
+                    <strong>{{ card.answer }}</strong>
+                </span>
+            </button>
+        </div>
+
+        <form method="post" action="{{ url_for('review_flashcard', card_id=card.id) }}" class="review-actions">
+            <input type="hidden" name="deck_id" value="{{ selected_deck_id or '' }}">
+            <input type="hidden" name="exam_id" value="{{ selected_exam_id or '' }}">
+            <input type="hidden" name="shuffle" value="{{ 1 if shuffle_cards else '' }}">
+            <button type="submit" name="rating" value="again" class="danger">
+                <span>Again</span>
+                <small>{{ review_time_labels.again }}</small>
+            </button>
+            <button type="submit" name="rating" value="good">
+                <span>Good</span>
+                <small>{{ review_time_labels.good }}</small>
+            </button>
+            <button type="submit" name="rating" value="easy" class="easy">
+                <span>Easy</span>
+                <small>{{ review_time_labels.easy }}</small>
+            </button>
+        </form>
+    {% else %}
+        <div class="empty-review">
+            <h3>No cards due.</h3>
+            {% if next_due_label %}
+                <p class="hint-text">Next card: {{ next_due_label|lower }}.</p>
+            {% else %}
+                <p class="hint-text">No cards yet.</p>
+            {% endif %}
+            {% if selected_exam %}
+                <a class="button-link" href="{{ url_for('exams', exam_id=selected_exam.id) }}">Edit exam decks</a>
+            {% else %}
+                <a class="button-link" href="{{ url_for('flashcards') }}">Go to flashcards</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</section>
+
+{% if card %}
+<script>
+    const flipCard = document.getElementById("flip-card");
+    flipCard.addEventListener("click", () => {
+        flipCard.classList.toggle("is-flipped");
+    });
+</script>
+{% endif %}
+{% endblock %}

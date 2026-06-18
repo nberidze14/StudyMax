@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-layout">
+    <div class="dashboard-main">
+        <section class="maindash-box dashboard-top">
+            <div class="dashboard-text">
+                <h2>Study space</h2>
+                <p class="hint-text">Review flashcards, finish your tasks and prepare for exams.</p>
+                <div class="dashboard-focus-row" aria-label="Today's quick summary">
+                    <span>{{ plan.due_flashcards|length }} flashcards due</span>
+                    <span>{{ plan.todays_tasks|length }} tasks today</span>
+                    <span>{{ plan.exam_countdowns|length }} upcoming exams</span>
+                </div>
+            </div>
+            <div class="dashboard-count">
+                <span>{{ plan.due_flashcards|length + plan.carryover_tasks|length }}</span>
+                <small>items waiting</small>
+            </div>
+        </section>
+
+        <a class="daily-plan-banner" href="{{ url_for('daily_plan') }}">
+            <span>Open today's plan</span>
+            <small>Review due cards and finish today's tasks</small>
+        </a>
+
+        <section class="box-title page-title-row">
+            <div>
+                <h2>Your workspace</h2>
+            </div>
+        </section>
+
+        <section class="stats-grid dashboard-stats">
+            <article class="card">
+                <h3>{{ stats.flashcards }}</h3>
+                <p>Flashcards</p>
+            </article>
+            <article class="card">
+                <h3>{{ stats.decks }}</h3>
+                <p>Decks</p>
+            </article>
+            <article class="card">
+                <h3>{{ stats.todos }}</h3>
+                <p>Total tasks</p>
+            </article>
+            <article class="card">
+                <h3>{{ stats.open_todos }}</h3>
+                <p>Open tasks</p>
+            </article>
+            <article class="card">
+                <h3>{{ stats.notes }}</h3>
+                <p>Notes</p>
+            </article>
+        </section>
+    </div>
+
+    <aside class="dashboard-sidebar" aria-label="Study summary">
+        <section class="sidebar-card">
+            <div class="sidebar-heading">
+                <h3>Study Activity</h3>
+                <div class="calendar-nav compact">
+                    <a href="{{ url_for('index', year=activity_calendar.previous_year, month=activity_calendar.previous_month) }}"><strong>&lt;</strong></a>
+                    <span>{{ activity_calendar.label }}</span>
+                    <a href="{{ url_for('index', year=activity_calendar.next_year, month=activity_calendar.next_month) }}"><strong>&gt;</strong></a>
+                </div>
+            </div>
+            <div class="activity-calendar">
+                {% for day in activity_calendar.weekdays %}
+                    <span class="calendar-weekday">{{ day }}</span>
+                {% endfor %}
+                {% for cell in activity_calendar.cells %}
+                    {% if cell.empty %}
+                        <span class="calendar-day empty"></span>
+                    {% else %}
+                        <div class="calendar-day level-{{ cell.level }} {{ 'today' if cell.is_today else '' }}" title="{{ cell.day }}: {{ cell.count }} cards reviewed">
+                            <strong>{{ cell.number }}</strong>
+                            {% if cell.count %}
+                                <small>{{ cell.count }}</small>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="calendar-legend">
+                <span>less</span>
+                <div class="legend-dots">
+                    {% for level in range(5) %}
+                        <span class="calendar-day level-{{ level }}"></span>
+                    {% endfor %}
+                </div>
+                <span>more</span>
+            </div>
+        </section>
+
+        <section class="sidebar-card">
+            <div class="sidebar-heading">
+                <h3>Today's Schedule</h3>
+                <a href="{{ url_for('daily_plan') }}">View all</a>
+            </div>
+            <ul class="schedule-list">
+                {% for item in today_summary %}
+                    <li>
+                        <span class="schedule-dot {{ item.tone }}">{{ item.initial }}</span>
+                        <span>
+                            <strong>{{ item.title }}</strong>
+                            <small>{{ item.meta }}</small>
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </aside>
+</div>
+{% endblock %}

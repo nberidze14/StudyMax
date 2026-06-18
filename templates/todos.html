@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="todo-workspace">
+    <aside class="todo-sidebar">
+        <details class="todo-add-box" open>
+            <summary>Add Task</summary>
+            <form method="post" class="todo-sidebar-form">
+                <input type="hidden" name="action" value="add_task">
+
+                <label for="title">Name</label>
+                <input id="title" name="title" placeholder="Task name" required>
+
+                <label for="due_date">Date</label>
+                <input id="due_date" name="due_date" type="date">
+
+                <label for="project_id">Project</label>
+                <select id="project_id" name="project_id">
+                    <option value="">No project</option>
+                    {% for project in projects %}
+                        <option value="{{ project.id }}">{{ project.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Add task</button>
+            </form>
+        </details>
+
+        <form method="get" action="{{ url_for('todos') }}" class="todo-search">
+            <label for="todo-search">Search To-Dos</label>
+            <input id="todo-search" name="search" value="{{ search }}" placeholder="Search">
+        </form>
+
+        <nav class="todo-nav" aria-label="To-do views">
+            <a class="{{ 'active' if active_view == 'done' else '' }}" href="{{ url_for('todos', view='done') }}">
+                <span>Done</span>
+                <small>{{ counts.done }}</small>
+            </a>
+            <a class="{{ 'active' if active_view == 'inbox' and not active_project_id and not search else '' }}" href="{{ url_for('todos') }}">
+                <span>Inbox</span>
+                <small>{{ counts.inbox }}</small>
+            </a>
+            <a class="{{ 'active' if active_view == 'today' else '' }}" href="{{ url_for('todos', view='today') }}">
+                <span>Today</span>
+                <small>{{ counts.today }}</small>
+            </a>
+            <a class="{{ 'active' if active_view == 'upcoming' else '' }}" href="{{ url_for('todos', view='upcoming') }}">
+                <span>Upcoming</span>
+                <small>{{ counts.upcoming }}</small>
+            </a>
+        </nav>
+
+        <div class="todo-projects">
+            <div class="todo-sidebar-title">Projects</div>
+            {% if projects %}
+                <nav class="todo-nav project-nav" aria-label="To-do projects">
+                    {% for project in projects %}
+                        <a class="{{ 'active' if active_project_id == project.id else '' }}" href="{{ url_for('todos', project_id=project.id) }}">
+                            <span>{{ project.name }}</span>
+                            <small>{{ project.task_count }}</small>
+                        </a>
+                    {% endfor %}
+                </nav>
+            {% else %}
+                <p class="todo-empty-small">No projects yet.</p>
+            {% endif %}
+
+            <form method="post" class="todo-sidebar-form compact">
+                <input type="hidden" name="action" value="add_project">
+                <label for="project_name">New Project</label>
+                <input id="project_name" name="project_name" placeholder="Project name">
+                <button type="submit">Add project</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="todo-main box">
+        <div class="box-title">
+            <div>
+                <h2>{{ page_title }}</h2>
+            </div>
+            <span class="todo-count">{{ items|length }} tasks</span>
+        </div>
+
+        {% if items %}
+            <ul class="todo-list todo-list-large">
+                {% for item in items %}
+                    <li class="{{ 'done' if item.is_done else '' }}">
+                        <form method="post" action="{{ url_for('toggle_todo', todo_id=item.id) }}">
+                            <button type="submit" class="todo-check" aria-label="{{ 'Mark incomplete' if item.is_done else 'Mark complete' }}">
+                            </button>
+                        </form>
+
+                        <div class="todo-item-body">
+                            <strong>{{ item.title }}</strong>
+                            <div class="todo-meta-line">
+                                {% if item.due_date %}
+                                    <span class="todo-date-chip {{ 'overdue' if item.due_date < today and not item.is_done else '' }} {{ 'today' if item.due_date == today and not item.is_done else '' }}">
+                                        Due {{ item.due_label }}
+                                    </span>
+                                {% else %}
+                                    <span>No due date</span>
+                                {% endif %}
+                                {% if item.project_name %}
+                                    <span>{{ item.project_name }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <form method="post" action="{{ url_for('delete_todo', todo_id=item.id) }}">
+                            <button type="submit" class="danger ghost-danger" data-confirm="Delete this to-do?">Delete</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="todo-empty-state">
+                <h3>No tasks here</h3>
+                <p class="hint-text">No tasks here.</p>
+            </div>
+        {% endif %}
+    </main>
+</section>
+{% endblock %}

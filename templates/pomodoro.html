@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="pomodoro-page">
+    <div class="pomodoro-stage">
+        <div class="pomodoro-mode-tabs" role="group" aria-label="Timer modes">
+            <button type="button" class="pomodoro-mode-button active" data-mode="focus">Study</button>
+            <button type="button" class="pomodoro-mode-button" data-mode="short">Short Break</button>
+            <button type="button" class="pomodoro-mode-button" data-mode="long">Long Break</button>
+        </div>
+
+        <div
+            class="timer pomodoro-timer"
+            data-focus-seconds="{{ settings.focus_minutes * 60 }}"
+            data-short-seconds="{{ settings.short_break_minutes * 60 }}"
+            data-long-seconds="{{ settings.long_break_minutes * 60 }}"
+            data-sessions-until-long="{{ settings.sessions_until_long_break }}"
+        >
+            <p class="timer-mode" id="timer-mode">Study Time</p>
+            <div id="timer-display">{{ "%02d:00"|format(settings.focus_minutes) }}</div>
+            <p class="pomodoro-cycle" id="pomodoro-cycle">
+                Session 1 of {{ settings.sessions_until_long_break }} before long break
+            </p>
+
+            <div class="pomodoro-controls" aria-label="Timer controls">
+                <button type="button" id="reset-timer" class="timer-icon-button" aria-label="Reset timer">Reset</button>
+                <button type="button" id="start-timer" class="timer-icon-button primary" aria-label="Start timer">Start</button>
+                <button type="button" id="pause-timer" class="timer-icon-button" aria-label="Pause timer">Pause</button>
+                <button type="button" id="skip-timer" class="timer-icon-button" aria-label="Skip timer">Skip</button>
+            </div>
+        </div>
+
+        <details class="custom-pomodoro">
+            <summary>Custom Pomodoro</summary>
+            <form method="post" class="pomodoro-settings-form">
+                <input type="hidden" name="action" value="save_settings">
+
+                <label for="focus_minutes">Study time</label>
+                <input id="focus_minutes" name="focus_minutes" type="number" min="1" value="{{ settings.focus_minutes }}" required>
+
+                <label for="short_break_minutes">Short break</label>
+                <input id="short_break_minutes" name="short_break_minutes" type="number" min="1" value="{{ settings.short_break_minutes }}" required>
+
+                <label for="long_break_minutes">Long break</label>
+                <input id="long_break_minutes" name="long_break_minutes" type="number" min="1" value="{{ settings.long_break_minutes }}" required>
+
+                <label for="sessions_until_long_break">Sessions</label>
+                <input id="sessions_until_long_break" name="sessions_until_long_break" type="number" min="1" value="{{ settings.sessions_until_long_break }}" required>
+
+                <button type="submit">Save Settings</button>
+            </form>
+        </details>
+    </div>
+</section>
+
+<script>
+    const display = document.getElementById("timer-display");
+    const modeDisplay = document.getElementById("timer-mode");
+    const cycleDisplay = document.getElementById("pomodoro-cycle");
+    const startButton = document.getElementById("start-timer");
+    const pauseButton = document.getElementById("pause-timer");
+    const resetButton = document.getElementById("reset-timer");
+    const skipButton = document.getElementById("skip-timer");
+    const timerContainer = document.querySelector(".timer");
+    const modeButtons = document.querySelectorAll(".pomodoro-mode-button");
+
+    const modeSeconds = {
+        focus: Number(timerContainer.dataset.focusSeconds),
+        short: Number(timerContainer.dataset.shortSeconds),
+        long: Number(timerContainer.dataset.longSeconds),
+    };
+    const sessionsUntilLongBreak = Number(timerContainer.dataset.sessionsUntilLong);
+
+    let currentMode = "focus";
+    let completedFocusSessions = 0;
+    let remainingSeconds = modeSeconds.focus;
+    let isRunning = false;
+    let endAt = null;
+    let intervalId = null;
+
+    function modeLabel(mode) {
+        if (mode === "short") {
+            return "Short Break";
+        }
+        if (mode === "long") {
+            return "Long Break";
+        }
+        return "Study Time";
+    }
+
+    function renderTimer() {
+        if (isRunning && endAt !== null) {
+            remainingSeconds = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+        }
+        const minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, "0");
+        const seconds = String(remainingSeconds % 60).padStart(2, "0");
+        display.textContent = `${minutes}:${seconds}`;
+        modeDisplay.textContent = modeLabel(currentMode);
+        cycleDisplay.textContent = `Session ${Math.min(completedFocusSessions + 1, sessionsUntilLongBreak)} of ${sessionsUntilLongBreak} before long break`;
+        startButton.textContent = isRunning ? "Running" : "Start";
+
+        modeButtons.forEach((button) => {
+            button.classList.toggle("active", button.dataset.mode === currentMode);
+        });
+    }
+
+    function currentState() {
+        return {
+            mode: currentMode,
+            completedFocusSessions,
+            remainingSeconds,
+            running: isRunning,
+            endAt,
+            modeSeconds,
+            sessionsUntilLongBreak,
+        };
+    }
+
+    function saveState() {
+        window.studymaxPomodoro.save(currentState());
+    }
+
+    function loadState() {
+        const saved = window.studymaxPomodoro.load();
+        if (!saved || !saved.modeSeconds) {
+            saveState();
+            return;
+        }
+        currentMode = saved.mode || "focus";
+        completedFocusSessions = Number(saved.completedFocusSessions || 0);
+        isRunning = Boolean(saved.running);
+        endAt = saved.endAt ? Number(saved.endAt) : null;
+        remainingSeconds = Number(saved.remainingSeconds || modeSeconds[currentMode]);
+        if (isRunning && endAt !== null) {
+            remainingSeconds = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+        }
+        renderTimer();
+    }
+
+    function stopTimer(save = true) {
+        if (isRunning && endAt !== null) {
+            remainingSeconds = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+        }
+        if (intervalId !== null) {
+            window.clearInterval(intervalId);
+            intervalId = null;
+        }
+        isRunning = false;
+        endAt = null;
+        if (save) {
+            saveState();
+        }
+    }
+
+    function setMode(mode, save = true) {
+        currentMode = mode;
+        isRunning = false;
+        endAt = null;
+        remainingSeconds = modeSeconds[currentMode];
+        renderTimer();
+        if (save) {
+            saveState();
+        }
+    }
+
+    function advanceMode(save = true) {
+        if (currentMode === "focus") {
+            completedFocusSessions += 1;
+            if (completedFocusSessions >= sessionsUntilLongBreak) {
+                completedFocusSessions = 0;
+                setMode("long", save);
+            } else {
+                setMode("short", save);
+            }
+            return;
+        }
+
+        setMode("focus", save);
+    }
+
+    function startUiInterval() {
+        if (intervalId !== null) {
+            return;
+        }
+
+        intervalId = window.setInterval(() => {
+            window.studymaxPomodoro.check();
+            const saved = window.studymaxPomodoro.load();
+            if (saved && !saved.running) {
+                loadState();
+                stopTimer(false);
+                return;
+            }
+            renderTimer();
+        }, 1000);
+    }
+
+    modeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            stopTimer();
+            setMode(button.dataset.mode);
+        });
+    });
+
+    startButton.addEventListener("click", () => {
+        if (intervalId !== null) {
+            return;
+        }
+
+        isRunning = true;
+        endAt = Date.now() + remainingSeconds * 1000;
+        saveState();
+        startUiInterval();
+        renderTimer();
+    });
+
+    pauseButton.addEventListener("click", stopTimer);
+
+    resetButton.addEventListener("click", () => {
+        stopTimer();
+        completedFocusSessions = 0;
+        setMode("focus");
+    });
+
+    skipButton.addEventListener("click", () => {
+        stopTimer();
+        advanceMode();
+    });
+
+    window.addEventListener("pomodoro-state-change", () => {
+        loadState();
+    });
+
+    loadState();
+    if (isRunning) {
+        startUiInterval();
+    }
+</script>
+{% endblock %}

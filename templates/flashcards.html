@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box-title page-title-row">
+    <div>
+        <h2>Your decks</h2>
+    </div>
+    <a class="button-link" href="{{ url_for('new_flashcard_deck') }}">Create Deck</a>
+</section>
+
+{% if decks %}
+    <section class="deck-grid">
+        {% for deck in decks %}
+            <a class="deck-card" href="{{ url_for('flashcard_deck', deck_id=deck.id) }}">
+                <span class="deck-card-icon">{{ deck.name[:1]|upper }}</span>
+                <span>
+                    <strong>{{ deck.name }}</strong>
+                    <small>{{ deck.card_count }} cards - {{ deck.due_count or 0 }} due</small>
+                </span>
+            </a>
+        {% endfor %}
+    </section>
+{% else %}
+    <section class="box">
+        <h3>No decks yet</h3>
+        <a class="button-link" href="{{ url_for('new_flashcard_deck') }}">Create Deck</a>
+    </section>
+{% endif %}
+{% endblock %}

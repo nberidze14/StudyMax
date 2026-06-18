@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box small-box">
+    <div class="box-title">
+        <div>
+            <h2>New Deck</h2>
+        </div>
+    </div>
+
+    <form method="post" action="{{ url_for('create_flashcard_deck') }}" class="form-fields" autocomplete="off">
+        <input id="deck_name" name="name" placeholder="Deck Name" autocomplete="off" required>
+        <div class="actions">
+            <button type="submit">Create deck</button>
+            <a class="button-link secondary" href="{{ url_for('flashcards') }}">Back to decks</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box-title page-title-row">
+    <div>
+        <h2>{{ deck.name }}</h2>
+        <p class="hint-text">{{ cards|length }} cards. {{ due_count }} ready to review.</p>
+    </div>
+    <div class="actions">
+        <a class="button-link" href="{{ url_for('new_flashcard', deck_id=deck.id) }}">Add Cards</a>
+        <a class="button-link secondary" href="{{ url_for('review_flashcards', deck_id=deck.id) }}">Review</a>
+    </div>
+</section>
+
+{% if cards %}
+    <section class="term-list">
+        {% for card in cards %}
+            <article class="term-row">
+                <div class="term-question">
+                    <strong>{{ card.question }}</strong>
+                </div>
+                <div class="term-answer">
+                    <p>{{ card.answer }}</p>
+                </div>
+                <div class="actions">
+                    <a class="button-link secondary" href="{{ url_for('edit_flashcard', card_id=card.id) }}">Edit</a>
+                    <form method="post" action="{{ url_for('delete_flashcard', card_id=card.id) }}">
+                        <input type="hidden" name="deck_id" value="{{ deck.id }}">
+                        <button type="submit" class="danger ghost-danger" data-confirm="Delete this flashcard?">Delete</button>
+                    </form>
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+{% else %}
+    <section class="box">
+        <h3>No cards in this deck yet</h3>
+        <a class="button-link" href="{{ url_for('new_flashcard', deck_id=deck.id) }}">Add Cards</a>
+    </section>
+{% endif %}
+{% endblock %}

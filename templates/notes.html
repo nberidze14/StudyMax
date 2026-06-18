@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set note_title = selected_note.title if selected_note else '' %}
+{% set note_content = selected_note.content if selected_note else '' %}
+{% set note_alignment = selected_note.alignment if selected_note and selected_note.alignment else 'left' %}
+
+<section class="notes-workspace">
+    <aside class="notes-sidebar">
+        <a class="button-link notes-new-button" href="{{ url_for('notes') }}">Add New Note</a>
+
+        <form class="notes-search-form">
+            <input id="notes-search" type="search" placeholder="Search">
+        </form>
+
+        <div class="notes-list" id="notes-list">
+            {% if notes %}
+                {% for note in notes %}
+                    <a
+                        class="note-list-item {{ 'active' if selected_note and selected_note.id == note.id else '' }}"
+                        href="{{ url_for('notes', note_id=note.id) }}"
+                        data-title="{{ note.title|lower }}"
+                    >
+                        <strong>{{ note.title }}</strong>
+                        <small>{{ note.created_at }}</small>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <p class="hint-text">No notes yet.</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="notes-writing-area">
+        <form method="post" class="notes-editor-form" id="note-form">
+            {% if selected_note %}
+                <input type="hidden" name="note_id" value="{{ selected_note.id }}">
+            {% endif %}
+            <input type="hidden" name="alignment" id="note-alignment" value="{{ note_alignment }}">
+
+            <div class="notes-topbar">
+                <div class="notes-tools" aria-label="Note tools">
+                    <button type="button" data-insert="bold"><strong>B</strong></button>
+                    <button type="button" data-insert="italic">/</button>
+                    <button type="button" data-insert="bullet">&bull;</button>
+                    <button type="button" data-insert="number">1.</button>
+                </div>
+
+                <div class="notes-align-tools" aria-label="Text alignment">
+                    <button type="button" class="{{ 'active' if note_alignment == 'left' else '' }}" data-align="left">Left</button>
+                    <button type="button" class="{{ 'active' if note_alignment == 'center' else '' }}" data-align="center">Center</button>
+                    <button type="button" class="{{ 'active' if note_alignment == 'right' else '' }}" data-align="right">Right</button>
+                </div>
+
+            </div>
+
+            <div class="notes-title-row">
+                <label for="title">Title</label>
+                <input id="title" name="title" value="{{ note_title }}" placeholder="Untitled note" required>
+            </div>
+
+            <div class="notes-writing-space" id="writing-space">
+                <input type="hidden" id="content" name="content" value="{{ note_content|e }}">
+                <div class="rich-note-editor" id="rich-note-editor" contenteditable="true" data-placeholder="Notes...">{{ note_content|safe }}</div>
+                <button type="button" class="selection-flashcard-popover" id="selection-flashcard-popover">Add to flashcards</button>
+            </div>
+
+            <div class="notes-statusbar">
+                <span id="word-count">0 words</span>
+                <span id="char-count">0 characters</span>
+                <span id="line-count">1 line</span>
+            </div>
+
+            <div class="notes-bottombar">
+                <div class="actions">
+                    <button type="button" class="secondary-button" id="download-note">Download .txt</button>
+                    <button type="button" class="secondary-button" id="copy-note">Copy to Clipboard</button>
+                </div>
+                <div class="actions">
+                    <button type="submit">{{ 'Update Note' if selected_note else 'Save Note' }}</button>
+                    {% if selected_note %}
+                        <button type="submit" class="danger ghost-danger" form="delete-note-form" data-confirm="Delete this note?">Delete Note</button>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+
+        {% if selected_note %}
+            <form method="post" action="{{ url_for('delete_note', note_id=selected_note.id) }}" id="delete-note-form"></form>
+        {% endif %}
+
+        <section class="card-drafts box">
+            <div class="box-title">
+                <div>
+                    <h3>Flashcards</h3>
+                </div>
+                <button type="button" class="secondary-button scan-note-button" id="scan-note-flashcards">Scan note</button>
+            </div>
+
+            <p class="hint-text">Scan finds only <code>word (definition)</code>.</p>
+            <p class="message error inline-note-error" id="scan-note-error" hidden>No flashcards found...</p>
+
+            <form method="post" action="{{ url_for('save_note_flashcards') }}" class="form-fields" id="draft-form">
+                {% if selected_note %}
+                    <input type="hidden" name="note_id" value="{{ selected_note.id }}">
+                {% endif %}
+                <select id="draft_deck_id" name="deck_id" required>
+                    <option value="">Choose a deck</option>
+                    {% for deck in decks %}
+                        <option value="{{ deck.id }}">{{ deck.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <div class="draft-list" id="draft-list"></div>
+                <button type="submit">Create flashcards</button>
+            </form>
+        </section>
+    </main>
+</section>
+
+<script>
+    const contentInput = document.getElementById("content");
+    const editor = document.getElementById("rich-note-editor");
+    const title = document.getElementById("title");
+    const writingSpace = document.getElementById("writing-space");
+    const alignmentInput = document.getElementById("note-alignment");
+    const wordCount = document.getElementById("word-count");
+    const charCount = document.getElementById("char-count");
+    const lineCount = document.getElementById("line-count");
+    const notesSearch = document.getElementById("notes-search");
+    const selectionPopover = document.getElementById("selection-flashcard-popover");
+    const draftList = document.getElementById("draft-list");
+    const scanNoteError = document.getElementById("scan-note-error");
+    let savedSelection = null;
+
+    function saveSelection() {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        if (editor.contains(range.commonAncestorContainer)) {
+            savedSelection = range.cloneRange();
+        }
+    }
+
+    function restoreSelection() {
+        if (!savedSelection) {
+            editor.focus();
+            return;
+        }
+
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(savedSelection);
+        editor.focus();
+    }
+
+    function syncContent() {
+        contentInput.value = editor.innerHTML.trim();
+    }
+
+    function updateStats() {
+        const value = editor.innerText.trim();
+        const words = value ? value.split(/\s+/).length : 0;
+        wordCount.textContent = `${words} ${words === 1 ? "word" : "words"}`;
+        charCount.textContent = `${editor.innerText.length} characters`;
+        const lines = editor.innerText.split("\n").length;
+        lineCount.textContent = `${lines} ${lines === 1 ? "line" : "lines"}`;
+        syncContent();
+    }
+
+    function runCommand(command, value = null) {
+        restoreSelection();
+        document.execCommand(command, false, value);
+        saveSelection();
+        updateStats();
+    }
+
+    function insertHtml(html) {
+        restoreSelection();
+        document.execCommand("insertHTML", false, html);
+        saveSelection();
+        updateStats();
+    }
+
+    function escapeAttribute(value) {
+        return value
+            .replaceAll("&", "&amp;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+    }
+
+    function addFlashcardDraft(term, definition = "") {
+        term = term.trim();
+        definition = definition.trim();
+        if (!term) {
+            return;
+        }
+
+        scanNoteError.hidden = true;
+        const row = document.createElement("div");
+        row.className = "draft-row";
+        row.innerHTML = `
+            <label>
+                Term
+                <input name="terms" value="${escapeAttribute(term)}" required>
+            </label>
+            <label>
+                Definition
+                <textarea name="definitions" placeholder="Write definition..." required>${escapeAttribute(definition)}</textarea>
+            </label>
+            <button type="button" class="secondary-button remove-draft">Remove</button>
+        `;
+        row.querySelector(".remove-draft").addEventListener("click", () => {
+            row.remove();
+        });
+        draftList.appendChild(row);
+    }
+
+    function scanParenthesesFlashcards() {
+        const text = editor.innerText;
+        const pattern = /\b([A-Za-zა-ჰ][A-Za-zა-ჰ0-9'’\- ]{0,60}?)\s*\(([^()]{2,220})\)/g;
+        let count = 0;
+        for (const match of text.matchAll(pattern)) {
+            let term = match[1].trim().replace(/[.,;:!?-]+$/g, "");
+            const words = term.split(/\s+/);
+            term = words[words.length - 1];
+            addFlashcardDraft(term, match[2]);
+            count += 1;
+        }
+        if (count === 0) {
+            scanNoteError.hidden = false;
+        } else {
+            scanNoteError.hidden = true;
+        }
+    }
+
+    document.querySelectorAll("[data-insert]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const type = button.dataset.insert;
+            if (type === "bold") runCommand("bold");
+            if (type === "italic") runCommand("italic");
+            if (type === "bullet") insertHtml("<div>•&nbsp;</div>");
+            if (type === "number") runCommand("insertOrderedList");
+        });
+    });
+
+    document.querySelectorAll("[data-align]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const alignment = button.dataset.align;
+            alignmentInput.value = alignment;
+            runCommand(`justify${alignment.charAt(0).toUpperCase()}${alignment.slice(1)}`);
+            document.querySelectorAll("[data-align]").forEach((item) => item.classList.toggle("active", item === button));
+        });
+    });
+
+    document.getElementById("download-note").addEventListener("click", () => {
+        const blob = new Blob([editor.innerText], { type: "text/plain" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${title.value || "note"}.txt`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    });
+
+    document.getElementById("copy-note").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(editor.innerText);
+    });
+
+    document.getElementById("scan-note-flashcards").addEventListener("click", scanParenthesesFlashcards);
+
+    selectionPopover.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        const selectedText = savedSelection ? savedSelection.toString().trim() : "";
+        addFlashcardDraft(selectedText);
+        selectionPopover.classList.remove("visible");
+    });
+
+    notesSearch.addEventListener("input", () => {
+        const query = notesSearch.value.trim().toLowerCase();
+        document.querySelectorAll(".note-list-item").forEach((item) => {
+            item.hidden = query && !item.dataset.title.includes(query);
+        });
+    });
+
+    document.getElementById("note-form").addEventListener("submit", () => {
+        syncContent();
+    });
+
+    document.addEventListener("selectionchange", () => {
+        saveSelection();
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.toString().trim().length === 0) {
+            selectionPopover.classList.remove("visible");
+            return;
+        }
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) {
+            selectionPopover.classList.remove("visible");
+            return;
+        }
+        const rect = range.getBoundingClientRect();
+        const containerRect = writingSpace.getBoundingClientRect();
+        selectionPopover.style.left = `${rect.left - containerRect.left}px`;
+        selectionPopover.style.top = `${rect.bottom - containerRect.top + 8}px`;
+        selectionPopover.classList.add("visible");
+    });
+    editor.addEventListener("keyup", saveSelection);
+    editor.addEventListener("mouseup", saveSelection);
+    editor.addEventListener("input", updateStats);
+    updateStats();
+</script>
+{% endblock %}

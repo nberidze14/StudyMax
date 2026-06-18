@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="box-title page-title-row">
+    <div>
+        <h2>{{ exam.title }}</h2>
+        <p class="hint-text">Cards and tasks for this exam.</p>
+    </div>
+    <div class="actions">
+        <a class="button-link" href="{{ url_for('review_flashcards', exam_id=exam.id) }}">Review exam flashcards</a>
+        <form method="post" action="{{ url_for('plan_exam_prep', exam_id=exam.id) }}">
+            <input type="hidden" name="next" value="exam_study">
+            <button type="submit" class="button-link prep-button" data-confirm="This will move exam tasks and card review dates before the exam.">Plan exam prep</button>
+        </form>
+        <a class="button-link secondary" href="{{ url_for('exams', exam_id=exam.id) }}">Edit exam</a>
+    </div>
+</section>
+
+<section class="split">
+    <article class="box blue-card">
+        <h3>Flashcard Decks</h3>
+        {% if decks %}
+            <ul class="simple-list">
+                {% for deck in decks %}
+                    <li>
+                        <span>{{ deck.name }}</span>
+                        <small>{{ deck.due_count or 0 }} due / {{ deck.card_count }} total</small>
+                    </li>
+                {% endfor %}
+            </ul>
+            <a class="button-link" href="{{ url_for('review_flashcards', exam_id=exam.id) }}">Start review</a>
+        {% else %}
+            <p>No decks added.</p>
+        {% endif %}
+    </article>
+
+    <article class="box light-card">
+        <h3>Exam To-Dos</h3>
+        {% if todos %}
+            <ul class="simple-list">
+                {% for todo in todos %}
+                    <li class="daily-task-item {{ 'done' if todo.is_done else '' }}">
+                        <form method="post" action="{{ url_for('toggle_todo', todo_id=todo.id) }}">
+                            <input type="hidden" name="next" value="exam_study">
+                            <input type="hidden" name="exam_id" value="{{ exam.id }}">
+                            <button type="submit" class="todo-check" aria-label="{{ 'Mark incomplete' if todo.is_done else 'Mark complete' }}"></button>
+                        </form>
+                        <span>{{ todo.title }}</span>
+                        <small>
+                            {% if todo.project_name %}{{ todo.project_name }}{% endif %}
+                            {% if todo.due_label %}{{ ' - ' if todo.project_name else '' }}{{ todo.due_label }}{% endif %}
+                        </small>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No tasks added.</p>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}
