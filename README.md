@@ -1,0 +1,2 @@
+# StudyMax
+Bachelor's Project
